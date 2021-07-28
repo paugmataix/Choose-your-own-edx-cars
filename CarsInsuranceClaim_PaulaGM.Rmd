@@ -1,0 +1,466 @@
+---
+title: 'Data Science - Capstone: Cars Insurance Claim. An application of machine learning techniques to know if a client will claim their loan'
+author: "Paula González Mataix"
+date: "7/28/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,message = FALSE, warning = FALSE)
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(ggthemes)) 
+  install.packages("ggthemes", repos = "http://cran.us.r-project.org")
+if(!require(scales)) 
+  install.packages("scales", repos = "http://cran.us.r-project.org")
+if(!require(gridExtra)) 
+  install.packages("gridExtra", repos = "http://cran.us.r-project.org")
+if(!require(ggcorrplot))
+  install.packages("ggcorrplot", repos = "http://cran.us.r-project.org")
+if(!require(ggplot2))
+  install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+if(!require(rpart.plot))
+  install.packages("rpart.plot", repos = "http://cran.us.r-project.org")
+if(!require(rpart))
+  install.packages("rpart", repos = "http://cran.us.r-project.org")
+if(!require(C50))
+  install.packages("C50", repos = "http://cran.us.r-project.org")
+if(!require(randomForest))
+  install.packages("randomForest", repos = "http://cran.us.r-project.org")
+if(!require(caret))
+  install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(ROCR))
+  install.packages("ROCR", repos = "http://cran.us.r-project.org")
+if(!require(Rborist))
+  install.packages("Rborist", repos = "http://cran.us.r-project.org")
+
+library(tidyverse)
+library(caret)
+library(data.table)
+library(lubridate)
+library(grid)
+library(gridExtra)
+library(ggplot2)
+library(ggcorrplot)
+library(rpart)
+library(rpart.plot)
+library(C50)
+library(randomForest)
+library(caret)
+library(ROCR)
+library(Rborist)
+
+ci <- tempfile()
+download.file("https://github.com/paugmataix/Choose-your-own-edx-cars/raw/main/Car_Insurance_Claim.csv",ci)
+
+cars_insurance <- str_split_fixed(readLines(ci), "\\,",19)
+colnames(cars_insurance) <- cars_insurance[1,]
+cars_insurance <- cars_insurance[-1,]
+
+cars_insurance <- as.data.frame(cars_insurance)
+```
+
+## Introduction
+
+This present work is part of the capstone project of the ninth course, called Capstone, of the Professional Certificate in Data Science at Harvard University and EdX. Its goal is to demonstrate that the student acquired skills and knowledge during the previous eight courses of the program.
+
+The task consists of analyzing a data set called "Cars Insurance Data" that contains information from an insurer about claims that its customers have had in their cars with a series of descriptive characteristics to develop a prediction algorithm that allows guessing if a customer will claim their loan or not.
+
+To do so, the first thing that will be done is to become familiar with the data, then a classification tree and random forest model will be applied, the results will be discussed, and finally some conclusions will be drawn.
+
+## Data overview
+
+The first step is to know the data. The database that will be used in this work is called the Cars Insurance Data data set. 
+
+``` {r dimCars, include=FALSE, message=FALSE}
+colnames(cars_insurance)
+nrow(cars_insurance)
+```
+
+The chosen database includes a sample of 10,000 claims that have an outcome variable that indicates whether or not clients claim the loan. In addition, 18 other variables are collected that will be discussed later.
+
+There is no single, clear or even less simple rule to distinguish whether the client will claim the loan or not from a few features, and that's where machine learning techniques to recognize more complex hidden rules will come in.
+
+The variables present in the database are divided between categorical and ordinal and their description is as follows:
+
+*ID* -> identifies each claim with a numeric code
+
+*AGE* -> indicates the age of the insured divided into ranges that are: 16-25, 26-39, 40-64 or 65+ 
+
+*GENDER* -> indicates the sex of the insured divided as male or female   
+
+*RACE* -> indicates the race of the insured divided as majority or minority 
+
+*DRIVING_EXPERIENCE* -> indicates the years of experience that the insured has driving divided into the ranges: 0-9y, 10-19y, 20-29y o 30y+ 
+
+*EDUCATION* -> indicates the level of completed education that the insured has divided as: high school, none or university
+
+*INCOME* -> indicates the class to which the insured belongs according to their income divided into: middle class, poverty, upper class or working class
+
+*CREDIT_SCORE* -> indicates the credit score received by the insured  
+
+*VEHICLE_OWNERSHIP* -> indicates if the insured is the owner of the vehicle or not indicated with 0 or 1
+
+*VEHICLE_YEAR* -> indicates the vehicle registration year divided as before 2015 or after 2015
+
+*MARRIED* -> indicates if the insured is married or not with values 0 or 1
+
+*CHILDREN* -> indicates if the insured has children or not with values 0 or 1       
+*POSTAL_CODE* -> indicates the postal code of the insured differentiated between the following values: 10238, 21217, 32765 or 92101
+
+*ANNUAL_MILEAGE* -> indicates the annual mileage that the insured realize on his vehicle
+
+*VEHICLE_TYPE* -> indicates the type of vehicle that the insured has differentiated into sedan or sports car
+
+*SPEEDING_VIOLATIONS* -> indicates speeding limit violations committed by the insured
+
+*DUIS* -> indicates the amount of fines the insured has for driving with alcohol
+
+*PAST_ACCIDENTS* -> indicates the number of accidents the insured has had previously 
+
+*OUTCOME* -> indicates 1 if a customer has claimed his/her loan else 0
+
+More information about the data can be obtained in the following link:
+
+https://www.kaggle.com/sagnik1511/car-insurance-data
+
+The first step, after converting the variables into factors to be processed correctly, is to make a first general
+observation of the content of all the variables.
+
+```{r, echo=FALSE, message=FALSE}
+summary(cars_insurance)
+```
+
+The first thing that emerges from this is that the ID variable has a different value for each record and is only an identifier of the claim, therefore, it does not provide any information and will be eliminated from now on.
+
+The first thing that comes out of this is that the ID variable has a different value for each record and is only an identifier of the claim, therefore it does not provide any information and will be removed from now on.
+
+Other important data regarding the records that can be found in the sample are: that the majority are between 26 and 39 years old, that there are more women than men, almost all the insured are of the majority race, most of them are between 0 and 19 years of experience driving, they have passed high school, they are upper class, owners of the crashed vehicle, whose registration date is after 2015, without marrying, with children, their zip code is 10238, almost everyone has a sedan and few a car sports, most have no speeding violations, no DUIS, no accidents in the past, and no loan his claim. In addition, we can see that the annual mileage and credit score vary a lot, so they will be analyzed differently.
+
+## Data Analysis
+
+In the first previous analysis, it was seen that the variables CREDIT_SCORE, ANNUAL_MILEAGE, SPEEDING_VIOLATIONS and PAST_ACCIDENTS have more than six different values, and in fact the variable CREDIT_SCORE has a different value for each record so this value is continuous and will be treated in a way different, but the other variables will be formatted so that they can be viewed in table format and decide how to proceed.
+
+```{r sixvalues, echo=FALSE}
+table(SPEEDING_VIOLATIONS = cars_insurance$SPEEDING_VIOLATIONS)
+table(PAST_ACCIDENTS = cars_insurance$PAST_ACCIDENTS)
+table(ANNUAL_MILEAGE = cars_insurance$ANNUAL_MILEAGE)
+```
+
+As can be seen in the previous tables, these three variables do not have a large number of different values, so they are converted to numeric so that they appear ordered numerically and not alphabetically, but they will be treated like the rest of the variables with discrete values.
+
+The CREDIT_SCORE variable is also passed to numeric, but it will be treated differently because it is continuous.
+
+```{r transform, echo=FALSE}
+cars_insurance <- cars_insurance %>% mutate(SPEEDING_VIOLATIONS = as.numeric(as.character(SPEEDING_VIOLATIONS)), PAST_ACCIDENTS = as.numeric(as.character(PAST_ACCIDENTS)), ANNUAL_MILEAGE = as.numeric(as.character(ANNUAL_MILEAGE)), CREDIT_SCORE = as.numeric(as.character(CREDIT_SCORE)))
+```
+
+After this little treatment of the data, the variables continue to be analyzed. An important fact is to observe what proportion of claims in the sample have a value of 1 (the client has claimed his loan) and what proportion have a value of 0 (the client has not claimed his loan).
+
+```{r outcome, echo=FALSE}
+cars_insurance %>% ggplot(aes(OUTCOME, fill=OUTCOME)) + geom_bar()
+```
+
+In the previous graph, it can be seen that the number of loans that are not claimed is double that of the number that are, so there may be low prevalence problems.
+
+It is also logical to graphically observe the distribution according to the rest of the variables, distinguishing
+between claimed loan or unclaimed loan.
+
+``` {r graficVariables, echo=FALSE,fig.height = 15, fig.width = 9}
+# Variable AGE
+a <- cars_insurance %>% ggplot(aes(AGE, fill=OUTCOME)) + geom_bar()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Variable GENDER
+b <- cars_insurance %>% ggplot(aes(GENDER, fill=OUTCOME)) + geom_bar()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Variable RACE
+c <- cars_insurance %>% ggplot(aes(RACE, fill=OUTCOME)) + geom_bar()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Variable DRIVING_EXPERIENCE
+d <- cars_insurance %>% ggplot(aes(DRIVING_EXPERIENCE, fill=OUTCOME)) + geom_bar()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Variable EDUCATION
+e <- cars_insurance %>% ggplot(aes(EDUCATION, fill=OUTCOME)) + geom_bar()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Variable INCOME
+f <- cars_insurance %>% ggplot(aes(INCOME, fill=OUTCOME)) + geom_bar()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Variable VEHICLE_OWNERSHIP
+g <- cars_insurance %>% ggplot(aes(VEHICLE_OWNERSHIP, fill=OUTCOME)) + geom_bar()
+
+# Variable VEHICLE_YEAR
+h <- cars_insurance %>% ggplot(aes(VEHICLE_YEAR, fill=OUTCOME)) + geom_bar()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Variable MARRIED
+i <- cars_insurance %>% ggplot(aes(MARRIED, fill=OUTCOME)) + geom_bar()
+
+# Variable CHILDREN
+j <- cars_insurance %>% ggplot(aes(CHILDREN, fill=OUTCOME)) + geom_bar()
+
+# Variable POSTAL_CODE
+k <-cars_insurance %>% ggplot(aes(POSTAL_CODE, fill=OUTCOME)) + geom_bar()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Variable VEHICLE_TYPE
+l <- cars_insurance %>% ggplot(aes(VEHICLE_TYPE, fill=OUTCOME)) + geom_bar()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Variable SPEEDING_VIOLATIONS
+m <- cars_insurance %>% ggplot(aes(SPEEDING_VIOLATIONS, fill=OUTCOME)) + geom_bar()
+
+# Variable DUIS
+n <- cars_insurance %>% ggplot(aes(DUIS, fill=OUTCOME)) + geom_bar()
+
+# Variable PAST_ACCIDENTS
+o <- cars_insurance %>% ggplot(aes(PAST_ACCIDENTS, fill=OUTCOME)) + geom_bar()
+
+# Variable ANNUAL_MILEAGE
+p <- cars_insurance %>% ggplot(aes(ANNUAL_MILEAGE, fill=OUTCOME)) + geom_bar() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+grid.arrange(a,b,c,d,e,f,g,h, ncol = 2, nrow=4)
+```
+
+``` {r graficVariables2, echo=FALSE, fig.height = 15, fig.width = 9}
+grid.arrange(i,j,k,l,m,n,o,p, ncol = 2, nrow=4)
+```
+
+The reader can appreciate that there are some differences. For example, most clients who claim their loan are between the ages of 16 and 15, while those over 65 tend not to claim it; this also occurs with driving experience, where the majority of clients who claim their loan have between 0 and 9 years of experience, while those with more than 30 years of experience usually do not claim it; men demand it more than women; upper-class clients tend not to claim loans while poverty-class clients do; there is a higher proportion of owners who do not claim than those who do; there are more clients who are not married claim their loan than those who are; the proportion of claimed when they do not have or do have children is similar, but there are many more who have children and do not claim than those who do; those who do not violate speed limits, do not have DUIS and have not had accidents in the past have a similar distribution between those who claim and those who do not and finally, while everyone in the 21217 zip code has claimed the loan, the majority of the 10238 have not they have done.
+
+Finally, it is observed how the credit score is distributed according to the outcome value.
+
+```{r creditScore boxplot, echo=FALSE}
+cars_insurance %>%
+  ggplot(aes(OUTCOME, CREDIT_SCORE)) + geom_boxplot()
+```
+
+As can be seen in the previous boxplot, those who do not claim their loan have a higher credit score, because they have a higher median and higher values and those who do claim it have a lower credit score, in general.
+
+These characteristics are the ones that will help the models to classify the outcome.
+
+Now it will be checked whether there are also correlations between some of these features. Do they usually appear together? Separately? Or is it completely random? This can be analyzed through a correlation matrix, after making some conversions, since some data are categorical, and not numerical.
+
+```{r correlationMatrix, echo=FALSE,out.width = "150%"}
+c_i <- cars_insurance
+c_i <- c_i[-1]
+attach(c_i)
+
+MARRIED = as.numeric(MARRIED,levels=c("0.0","1.0"), labels = 0,1)
+c_i$MARRIED <- MARRIED
+
+CHILDREN = as.numeric(CHILDREN,levels=c("0.0","1.0"), labels = 0,1)
+c_i$CHILDREN <- CHILDREN
+
+VEHICLE_OWNERSHIP   = as.numeric(VEHICLE_OWNERSHIP,levels=c("0.0","1.0"), labels = 0,1)
+c_i$VEHICLE_OWNERSHIP <- VEHICLE_OWNERSHIP
+
+OUTCOME             = as.numeric(OUTCOME,levels=c("0.0","1.0"), labels = 0,1)
+c_i$OUTCOME         <- OUTCOME
+
+AGE                 = as.numeric(factor(AGE,levels=c("16-25","26-39","40-64","65+")))
+c_i$AGE             <- AGE
+
+GENDER              = as.numeric(factor(GENDER,levels=c("male", "female")))
+c_i$GENDER          <- GENDER
+
+RACE                = as.numeric(factor(RACE, levels=c("majority","minority")))
+c_i$RACE            <- RACE
+
+DRIVING_EXPERIENCE  = as.numeric(factor(DRIVING_EXPERIENCE, levels=c("0-9y","10-19y","20-29y","30y+")))
+c_i$DRIVING_EXPERIENCE <- DRIVING_EXPERIENCE
+
+EDUCATION           = as.numeric(factor(EDUCATION, levels=c("high school","none","university")))
+c_i$EDUCATION       <- EDUCATION
+
+INCOME              = as.numeric(factor(INCOME, levels=c("middle class","poverty","upper class","working class")))
+c_i$INCOME          <- INCOME
+
+VEHICLE_YEAR        = as.numeric(factor(VEHICLE_YEAR, levels=c("after 2015","before 2015")))
+c_i$VEHICLE_YEAR    <- VEHICLE_YEAR
+
+POSTAL_CODE         = as.numeric(factor(POSTAL_CODE, levels=c("10238","21217","32765","92101")))
+c_i$POSTAL_CODE     <- POSTAL_CODE
+
+VEHICLE_TYPE        = as.numeric(factor(VEHICLE_TYPE, levels=c("sedan","sports car")))
+c_i$VEHICLE_TYPE    <- VEHICLE_TYPE
+
+c_i$ANNUAL_MILEAGE <- as.numeric(as.character(c_i$ANNUAL_MILEAGE))
+c_i$SPEEDING_VIOLATIONS <- as.numeric(as.character(c_i$SPEEDING_VIOLATIONS))
+c_i$DUIS <- as.numeric(as.character(c_i$DUIS))
+c_i$PAST_ACCIDENTS  <- as.numeric(as.character(c_i$PAST_ACCIDENTS))
+c_i$CREDIT_SCORE <- as.numeric(as.character(c_i$CREDIT_SCORE))
+
+df <- dplyr::select_if(c_i, is.numeric)
+
+r <- cor(df, use="pairwise.complete.obs")
+r <- round(r,2)
+ggcorrplot(r, 
+           method = c("square", "circle"), 
+           type = c("full","lower", "upper"),
+           ggtheme = ggplot2::theme_minimal, title = "",
+           show.legend = TRUE, 
+           legend.title = "Corr", 
+           show.diag = FALSE,
+           colors = c("blue", "white", "red"), 
+           outline.color = "gray",
+           hc.order = TRUE, 
+           hc.method = "complete", 
+           lab = FALSE,
+           lab_col = "black", 
+           lab_size = 2, 
+           p.mat = NULL, 
+           sig.level = 0.05,
+           insig = c("pch", "blank"), 
+           pch = 4, pch.col = "black",
+           pch.cex = 5, 
+           tl.cex = 5, 
+           tl.col = "black", 
+           tl.srt = 45,
+           digits = 2)
+```
+
+Indeed, it can be seen that there are elements that relate to others, either in a positive or a negative way. 
+
+However, these variables, even when they do not explain the same thing, are related since they indirectly explain the same information or are logical relationships. Example: AGE - DRIVING EXPERIENCE.
+
+## Methods
+
+This is a classification problem based on categorical and numerical variables, for which it has been considered that classification trees and random forest would be appropriate techniques. To do this, the database is first broken down into a training set with 80% of the observations and a test set with the remaining 20%. After removing the rows with NA values, the training dataset has 6513 rows and the test dataset 1636.
+
+Two different models will be tested: classification tree and random forest.
+
+```{r partitionData,echo=FALSE}
+c_i$OUTCOME <- factor(c_i$OUTCOME)
+c_i$AGE <- factor(c_i$AGE)
+c_i$GENDER <- factor(c_i$GENDER)
+c_i$RACE <- factor(c_i$RACE)
+c_i$DRIVING_EXPERIENCE <- factor(c_i$DRIVING_EXPERIENCE)
+c_i$EDUCATION <- factor(c_i$EDUCATION)
+c_i$INCOME <- factor(c_i$INCOME)
+c_i$VEHICLE_YEAR <- factor(c_i$VEHICLE_YEAR)
+c_i$POSTAL_CODE <- factor(c_i$POSTAL_CODE)
+c_i$VEHICLE_TYPE   <- factor(c_i$VEHICLE_TYPE)
+
+set.seed(1, sample.kind="Rounding")
+test_index <- createDataPartition(y = c_i$OUTCOME, times = 1,
+                                  p = 0.2, list = FALSE)
+train_set <- c_i[-test_index,]
+test_set <- c_i[test_index,]
+
+train_set <- train_set[complete.cases(train_set), ]
+test_set <- test_set[complete.cases(test_set), ]
+```
+
+### Classification Tree
+
+The first approach considered is that of the decision tree, which is basically a flow chart or yes or no questions by partitioning the predictors. The predictions at the ends are referred as nodes. Since the outcomes in this case are categorical, we call this a classification tree.
+
+To apply this method, 25 complexity parameters are tested, from 0 to 0.05. The one that gets a better result in terms of precision is 0.0041666678. With lower and higher values, the accuracy decreases (as can be seen in the next plot), so this is the selected parameter.
+
+```{r cpAccuracy, echo=FALSE}
+train_rpart <- train(OUTCOME ~ .,
+                     method = "rpart",
+                     tuneGrid = data.frame(cp = seq(0.0, 0.1, len = 25)),
+                    data = train_set)
+cp_tree <- train_rpart$results$cp[which.max(train_rpart$results$Accuracy)] 
+cp_tree
+plot(train_rpart)
+```
+
+```{r treeCreation,message=FALSE, echo=FALSE}
+train_rpart <- rpart(OUTCOME~.,method="class",data=train_set)
+```
+
+### Random Forest
+
+Now, a random forest model is applied. Since there are only two possible outcomes and both have a noticeable presence in the data, there is no point in tuning the minimum node size. This is not the case for the number of selected predictors. Options from 2 to 20 are tested. The best fit in terms of precision occurs with 5 predictors.
+
+```{r rfAccuracy, echo=FALSE}
+train_rf_2 <- train(OUTCOME ~ .,
+      method = "Rborist",
+      tuneGrid = data.frame(predFixed = c(2,3,4,5,7,10,15,20), minNode = 2),
+      data = train_set)
+train_rf_2$bestTune
+plot(train_rf_2)
+```
+
+```{r rfPlot, echo=FALSE}
+mod <- randomForest(OUTCOME ~ .,
+                    data=train_set,
+                    nTree = 5000,
+                  minNode = train_rf_2$bestTune$minNode,
+                  predFixed = train_rf_2$bestTune$predFixed )
+```
+
+## Results
+
+The models have not yet been applied in the test set, so they may be over-adjusted. To check their actual validity they should be tested on a data sample that has not been used for training.
+
+### Classification Tree
+
+Before testing it, it is convenient to observe the classification tree that has been generated in the previous section. It is a tree with 12 end nodes. The = or >= of the plot should be interpreted as a question. If this characteristic (variable name + value) is fulfilled, the value is 1; if it is not fulfilled, it is 0. With this information, we answer each question and go to the right if the answer is no, and to the left if the answer is yes. For example, in the first division rule, the tree asks if the customer's driving experience is more than 9 years. If you do not have it (negative answer), continue to the right, if it is over 9 years old (positive answer), continue to the left. One of the main advantages of decision trees is that they are easy to interpret.
+
+```{r arbolPlot, echo=FALSE}
+rpart.plot(train_rpart,extra = 4) 
+```
+
+This critical point obtained previously will be used for the adjustment of the final model and against which the final evaluation of its effectiveness will be made.
+
+```{r podadoTree, echo=FALSE, message=FALSE}
+pArbolRpart <- prune(train_rpart, cp=cp_tree)
+```
+
+Now it is time to validate the model with the test set. The results of the confusion matrix are shown below.
+
+```{r predictTree, echo=FALSE, message=FALSE}
+testPredRpart <- predict(train_rpart, newdata = test_set, type="class")
+table(testPredRpart,test_set$OUTCOME)
+
+```
+
+```{r efectivityModel, echo=FALSE,message=FALSE}
+sum(testPredRpart==test_set$OUTCOME)/length(test_set$OUTCOME)*100
+```
+
+It can be seen that, although the global precision achieved is sufficiently high (84.23%), there are 140 classified as claimed. In this case, sensitivity is much more important than specificity.
+
+The random forest method is designed to correct some problems of overfitting and instability of decision trees. That is why this has been the next step: will the random forest model be able to correct these errors?
+
+### Random Forest
+
+As seen in the previous section, the final random forest model with 5 randomly selected predictors achieves 84% accuracy, although it still needs to be validated in the test set. 
+
+Random forest models are not as easily interpreted as decision trees. However, it is possible to know that the most important variables for the classification made by the random forest are the following:
+
+```{r importanceVar, echo=FALSE, message=FALSE}
+importance(mod)[order(importance(mod)),]
+varImpPlot(mod)
+```
+
+The importance of the variables in the model shows a clear bias in the variables credit_score and vehicle_year.
+
+Finally, it is validated that the model is the test set. The confusion matrix is now provided:
+
+```{r confusion, echo=FALSE, message=FALSE}
+confusionMatrix(predict(train_rf_2, test_set), test_set$OUTCOME)
+```
+
+As can be seen in the confusion matrix above, the Random Forest does not improve the classification of the Classification Tree much since the accuracy is 84.29 and before it was 84.23, but we know that the sensitivity is 0.9043 and the specificity 0.7104.
+
+## Conclusion
+
+In this work, two classification algorithms have been developed to distinguish if a client claims their loan or not based on a series of characteristics. Specifically, a classification tree and a random forest have been applied, both with about 84% accuracy. The final model is, therefore, improvable.
+
+As both algorithms have an accuracy of 84%, it is difficult to decide on one or the other algorithm, although the advantage offered by the classification tree is its easy and intuitive interpretation, so that by following the different division rules it would be possible to reach a conclusion for ourselves and when deciding between one or the other, this could help us choose.
+
+Some observations must be taken into account. In this problem in which we find ourselves, sensitivity is more important than specificity since it is important to see the outcome correctly marked as claimed than the possibility that a claim is marked as claimed and has not been.
+
+As the model has room for improvement, future research will have to improve the model, not from the general precision, but looking for the highest possible sensitivity. Also in this case, a better fit of the model should be sought by exploring other techniques and combining them together.
